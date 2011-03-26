@@ -10,10 +10,19 @@ package com.hurlant.util{
 
     public class Base64
     {
-        private static const _encodeChars : Vector.<int> = InitEncoreChar();
+        private static const _encodeCharsStandard : Vector.<int> = InitEncoreChar("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+        private static const _encodeCharsURLSafe  : Vector.<int> = InitEncoreChar("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
         private static const _decodeChars : Vector.<int> = InitDecodeChar();
 
-        public static function encodeByteArray(data : ByteArray) : String
+        public static function encodeByteArray(data : ByteArray) : String {
+            return encodeByteArrayHelper(data, _encodeCharsStandard);
+        }
+
+        public static function encodeURLSafeByteArray(data : ByteArray) : String {
+            return encodeByteArrayHelper(data, _encodeCharsURLSafe);
+        }
+
+        public static function encodeByteArrayHelper(data : ByteArray, encodeChars: Vector.<int>) : String
         {
             var out : ByteArray = new ByteArray();
             //Presetting the length keep the memory smaller and optimize speed since there is no "grow" needed
@@ -30,7 +39,7 @@ package com.hurlant.util{
 
                 //Cannot optimize this to read int because of the positioning overhead. (as3 bytearray seek is slow)
                 //Convert to 4 Characters (6 bit * 4 = 24 bits)
-                c = (_encodeChars[c >>> 18] << 24) | (_encodeChars[c >>> 12 & 0x3f] << 16) | (_encodeChars[c >>> 6 & 0x3f] << 8) | _encodeChars[c & 0x3f];
+                c = (encodeChars[c >>> 18] << 24) | (encodeChars[c >>> 12 & 0x3f] << 16) | (encodeChars[c >>> 6 & 0x3f] << 8) | encodeChars[c & 0x3f];
 
                 //Optimization: On older and slower computer, do one write Int instead of 4 write byte: 1.5 to 0.71 ms
                 out.writeInt(c);
@@ -46,13 +55,13 @@ package com.hurlant.util{
             {
                 //Read one char, write two chars, write padding
                 c = data[i];
-                c = (_encodeChars[c >>> 2] << 24) | (_encodeChars[(c & 0x03) << 4] << 16) | 61 << 8 | 61;
+                c = (encodeChars[c >>> 2] << 24) | (encodeChars[(c & 0x03) << 4] << 16) | 61 << 8 | 61;
                 out.writeInt(c);
             }
             else if (r == 2) //Need one "=" padding
             {
                 c = data[i++] << 8 | data[i];
-                c = (_encodeChars[c >>> 10] << 24) | (_encodeChars[c >>> 4 & 0x3f] << 16) | (_encodeChars[(c & 0x0f) << 2] << 8) | 61;
+                c = (encodeChars[c >>> 10] << 24) | (encodeChars[c >>> 4 & 0x3f] << 16) | (encodeChars[(c & 0x0f) << 2] << 8) | 61;
                 out.writeInt(c);
             }
 
@@ -97,7 +106,10 @@ package com.hurlant.util{
                 do
                 {
                     c3 = byteString[i++];
-                    if (c3 == 61) return out;
+                    if (c3 == 61) {
+						out.position = 0;
+						return out;
+					}
 
                     c3 = _decodeChars[c3];
                 } while (i < len && c3 == -1);
@@ -108,7 +120,10 @@ package com.hurlant.util{
                 //c4
                 do {
                     c4 = byteString[i++];
-                    if (c4 == 61) return out;
+                    if (c4 == 61) {
+						out.position = 0;
+						return out;
+					}
 
                     c4 = _decodeChars[c4];
                 } while (i < len && c4 == -1);
@@ -132,6 +147,15 @@ package com.hurlant.util{
             return encodeByteArray(bytes);
         }
 
+        public static function encodeURLSafe(data : String) : String {
+            // Convert string to ByteArray
+            var bytes : ByteArray = new ByteArray();
+            bytes.writeUTFBytes(data);
+
+            // Return encoded ByteArray
+            return encodeURLSafeByteArray(bytes);
+        }
+
         public static function decode(data : String) : String {
             // Decode data to ByteArray
             var bytes : ByteArray = decodeToByteArray(data);
@@ -140,11 +164,10 @@ package com.hurlant.util{
             return bytes.readUTFBytes(bytes.length);
         }
 
-        public static function InitEncoreChar() : Vector.<int>
+        public static function InitEncoreChar(chars : String) : Vector.<int>
         {
             var encodeChars : Vector.<int> = new Vector.<int>();
             // We could push the number directly, but i think it's nice to see the characters (with no overhead on encode/decode)
-            var chars : String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
             for (var i : int = 0; i < 64; i++)
             {
                 encodeChars.push(chars.charCodeAt(i));
@@ -169,10 +192,10 @@ package com.hurlant.util{
 
             decodeChars.push(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
                     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-                    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1, -1, 63,
+                    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, 62, -1, 63,
                     52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -1, -1, -1,
-                    -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-                    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, -1,
+                    -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+                    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, 63,
                     -1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
                     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1
                     - 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
